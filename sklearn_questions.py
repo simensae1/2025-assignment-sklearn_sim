@@ -233,7 +233,7 @@ class MonthlySplit(BaseCrossValidator):
              raise ValueError("X must be a pandas DataFrame or Series.")
 
         time_data = self._get_time_data(X)
-        months = time_data.to_series().dt.to_period('M').unique().sort_values()
+        months = time_data.to_period().dt.to_period('M').unique().sort_values()
         
         # Number of splits is the number of successive month pairs: len(months) - 1
         return max(0, len(months) - 1)
@@ -263,7 +263,7 @@ class MonthlySplit(BaseCrossValidator):
 
         time_data = self._get_time_data(X)
         # Convert datetime to Month-Period objects for accurate monthly grouping
-        time_data_periods = time_data.to_series().dt.to_period('M')
+        time_data_periods = time_data.to_period().dt.to_period('M')
         months = time_data_periods.unique().sort_values()
 
         for i in range(len(months) - 1):
