@@ -62,6 +62,20 @@ from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.metrics import accuracy_score
 
 
+import numpy as np
+import pandas as pd
+
+from sklearn.base import BaseEstimator
+from sklearn.base import ClassifierMixin
+
+from sklearn.model_selection import BaseCrossValidator
+
+from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import validate_data
+from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.metrics import accuracy_score
+
+
 class KNearestNeighbors(ClassifierMixin, BaseEstimator):
     """KNearestNeighbors classifier.
 
@@ -89,7 +103,9 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-        X, y = validate_data(X, y)
+        # Note: validate_data is called without the estimator parameter here 
+        # to correctly validate the input arrays X and y.
+        X, y = validate_data(X, y, ensure_min_samples=1, reset=True)
         self.X_ = X
         self.y_ = y
         self.n_features_in_ = X.shape[1]
@@ -109,12 +125,19 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
             Predicted class labels for each test data sample.
         """
         check_is_fitted(self)
-        X = validate_data(X, reset=False)
+        X = validate_data(X, reset=False, ensure_min_samples=1)
 
+        # Compute Euclidean distance between test samples X and training samples self.X_
         distances = pairwise_distances(X, self.X_, metric='euclidean')
+
+        # Get indices of n_neighbors closest training samples
+        # argsort sorts by distance, we take the first n_neighbors indices
         k_nearest_indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
+
+        # Get the labels of the n_neighbors
         k_nearest_labels = self.y_[k_nearest_indices]
 
+        # Find the most common label among the k-neighbors (majority vote)
         y_pred = np.array([
             np.argmax(np.bincount(k_nearest_labels[i]))
             for i in range(k_nearest_labels.shape[0])
@@ -138,6 +161,7 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
             Accuracy of the model computed for the (X, y) pairs.
         """
         y_pred = self.predict(X)
+        # Using sklearn.metrics.accuracy_score for consistency
         return accuracy_score(y, y_pred)
 
 
@@ -163,6 +187,10 @@ class MonthlySplit(BaseCrossValidator):
     def _get_time_data(self, X):
         """Helper to extract and validate time data."""
         if self.time_col == 'index':
+            if not pd.api.types.is_datetime64_any_dtype(X.index):
+                raise ValueError(
+                    "The index must be of datetime type when time_col is 'index'."
+                )
             time_data = X.index
         else:
             if not isinstance(X, pd.DataFrame):
@@ -175,12 +203,11 @@ class MonthlySplit(BaseCrossValidator):
                     f"Column '{self.time_col}' not found in the input DataFrame."
                 )
             time_data = X[self.time_col]
-
-        if not pd.api.types.is_datetime64_any_dtype(time_data):
-            raise ValueError(
-                f"The column/index '{self.time_col}' must be of datetime type, "
-                f"but got type {time_data.dtype}."
-            )
+            if not pd.api.types.is_datetime64_any_dtype(time_data):
+                raise ValueError(
+                    f"The column '{self.time_col}' must be of datetime type, "
+                    f"but got type {time_data.dtype}."
+                )
         return time_data
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -201,8 +228,14 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
+        if not isinstance(X, (pd.DataFrame, pd.Series)):
+             # We need a pandas object to access the index or a column
+             raise ValueError("X must be a pandas DataFrame or Series.")
+
         time_data = self._get_time_data(X)
         months = time_data.to_series().dt.to_period('M').unique().sort_values()
+        
+        # Number of splits is the number of successive month pairs: len(months) - 1
         return max(0, len(months) - 1)
 
     def split(self, X, y=None, groups=None):
@@ -225,18 +258,30 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
+        if not isinstance(X, (pd.DataFrame, pd.Series)):
+             raise ValueError("X must be a pandas DataFrame or Series.")
 
         time_data = self._get_time_data(X)
+        # Convert datetime to Month-Period objects for accurate monthly grouping
         time_data_periods = time_data.to_series().dt.to_period('M')
         months = time_data_periods.unique().sort_values()
 
         for i in range(len(months) - 1):
             train_month = months[i]
             test_month = months[i+1]
+
+            # Get the indices where the month matches the train_month
+            # .index gives the DataFrame/Series index, which corresponds to the array index if X is a simple numpy array, 
+            # but for a DataFrame/Series with a non-default index, we need the position in the array.
+            # Since X might be a numpy array in the split/get_n_splits signature but the tests provide a DataFrame, 
+            # we use np.where on the boolean masks for simplicity and robustness.
+            
             is_train = time_data_periods == train_month
             is_test = time_data_periods == test_month
+
             idx_train = np.where(is_train)[0]
             idx_test = np.where(is_test)[0]
+
             if len(idx_train) > 0 and len(idx_test) > 0:
                 yield (
                     idx_train, idx_test
