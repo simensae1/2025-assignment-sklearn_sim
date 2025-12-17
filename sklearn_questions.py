@@ -84,7 +84,6 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
         X = validate_data(self, X, reset=False)
         check_is_fitted(self)
         y_pred = np.zeros(X.shape[0], dtype=self.y_train_.dtype)
