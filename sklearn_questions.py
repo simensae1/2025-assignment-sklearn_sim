@@ -54,6 +54,7 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
+
     def fit(self, X, y):
         """Fitting function.
         Parameters
@@ -131,6 +132,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def __init__(self, time_col='index'):
         self.time_col = time_col
+
     def get_n_splits(self, X, y=None, groups=None):
         """Return the number of splitting iterations in the cross-validator.
         Parameters
