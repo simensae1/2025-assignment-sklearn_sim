@@ -109,7 +109,6 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
         y_pred = self.predict(X)
         correct_predictions = np.sum(y_pred == y)
         accuracy = correct_predictions / y.shape[0]
@@ -147,7 +146,6 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
         if self.time_col == "index":
             if not isinstance(X.index, pd.DatetimeIndex):
                 raise ValueError(
